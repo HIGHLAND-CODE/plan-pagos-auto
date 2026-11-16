@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan de pagos – venta del auto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#6b7280; --line:#e5e7eb;
+    --ok:#15803d; --ok-bg:#dcfce7; --pend:#b45309; --pend-bg:#fef3c7; --accent:#2563eb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{--bg:#111318;--card:#1a1d24;--ink:#e8eaed;--muted:#9aa0a6;--line:#2c313a;
+      --ok:#4ade80;--ok-bg:#14301f;--pend:#fbbf24;--pend-bg:#33270c;--accent:#60a5fa;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);}
+  .wrap{max-width:760px;margin:0 auto;padding:28px 18px 48px}
+  h1{font-size:24px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:22px}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .card .val{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .bar{height:10px;background:var(--line);border-radius:99px;overflow:hidden;margin:6px 0 4px}
+  .bar>div{height:100%;background:var(--ok);width:0;transition:width .4s}
+  .barlbl{font-size:13px;color:var(--muted);margin-bottom:22px}
+  .terms{font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:18px;line-height:1.6}
+  .terms b{color:var(--ink)}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:11px 12px;text-align:left;font-size:14px;border-bottom:1px solid var(--line)}
+  th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+  tr:last-child td{border-bottom:none}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tr.paid td.monto{text-decoration:line-through;color:var(--muted)}
+  .pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+  .pill.ok{background:var(--ok-bg);color:var(--ok)}
+  .pill.pend{background:var(--pend-bg);color:var(--pend)}
+  .pill.next{outline:2px solid var(--pend)}
+  .note{font-size:12px;color:var(--muted);margin-top:2px}
+  .chk{display:flex;align-items:center;gap:8px;cursor:pointer}
+  .chk input[type=checkbox]{width:18px;height:18px;accent-color:var(--ok);cursor:pointer}
+  input[type=date]{font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+  .status{font-size:13px;color:var(--muted);margin:12px 2px}
+  .status.err{color:#dc2626}
+  .owner-tag{display:inline-block;font-size:12px;background:var(--accent);color:#fff;padding:2px 8px;border-radius:6px;margin-left:6px;vertical-align:middle}
+  #ownerTag{display:inline-flex;align-items:center;gap:6px;vertical-align:middle;margin-left:6px}
+  .pin-btn{font:inherit;font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+  .pin-form{display:inline-flex;gap:6px;align-items:center}
+  .pin-form input{font:inherit;font-size:13px;width:80px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+  .pin-msg{font-size:12px;color:#dc2626;font-weight:500}
+  @media (max-width:600px){
+    .cards{grid-template-columns:1fr}
+    th.hide-m,td.hide-m{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Plan de pagos – venta del auto</h1>
+  <div class="sub">Precio total $3.000.000 · entrega pendiente el 17/11 · cuotas del 20 al 30 de cada mes</div>
+
+  <div class="cards">
+    <div class="card"><div class="lbl">Total cobrado</div><div class="val" id="kCobrado">–</div></div>
+    <div class="card"><div class="lbl">Saldo pendiente</div><div class="val" id="kSaldo">–</div></div>
+    <div class="card"><div class="lbl">Próximo pago</div><div class="val" id="kProx">–</div></div>
+  </div>
+  <div class="bar"><div id="barFill"></div></div>
+  <div class="barlbl" id="barLbl"></div>
+
+  <div class="terms">
+    Precio total: <b>$3.000.000</b> (incluye la entrega de $600.000).<br>
+    Entrega recibida: <b>$300.000</b>. Los <b>$300.000</b> que faltan de la entrega vencen el <b>17/11/2026</b>.<br>
+    Resto en cuotas mensuales de <b>$250.000</b>, desde noviembre (del 20 al 30 de cada mes).
+  </div>
+
+  <div class="status" id="status">Cargando estado de pagos…</div>
+
+  <table>
+    <thead><tr>
+      <th>Pago</th><th>Vence</th><th style="text-align:right">Monto</th><th>Estado</th><th class="hide-m">Fecha de pago</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<script>
+const TOTAL = 3000000, ENTREGA = 600000, RECIBIDO = 300000, CUOTA = 250000;
+const MESES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+
+// Cronograma: igual que la planilla
+function buildPlan(){
+  const financiado = TOTAL - ENTREGA;          // 2.400.000
+  const saldoEntrega = ENTREGA - RECIBIDO;      // 300.000
+  const plan = [{ n:"entrega", label:"Entrega", vence:"17 nov 2026", monto:saldoEntrega,
+    nota:"Resto de la entrega ($600.000 − $300.000 ya recibidos)" }];
+  let k = 1, y = 2026, m = 10; // noviembre 2026
+  while (true){
+    const monto = Math.max(0, Math.min(CUOTA, financiado - CUOTA*(k-1)));
+    if (monto <= 0) break;
+    const lastDay = new Date(y, m+1, 0).getDate();
+    plan.push({ n:k, label:String(k), vence:`20 al ${Math.min(30,lastDay)} ${MESES[m]} ${y}`, monto, nota:"" });
+    k++; m++; if (m > 11){ m = 0; y++; }
+  }
+  return plan;
+}
+const PLAN = buildPlan();
+const fmt = n => "$" + Math.round(n).toLocaleString("es-AR");
+const fmtFecha = s => { if(!s) return ""; const [a,b,c]=s.split("-"); return `${c}/${b}/${a}`; };
+
+let pagos = {};          // se carga de pagos.json: { "entrega": "2026-11-17", "1": "2026-11-25", ... }
+
+function render(){
+  const tbody = document.getElementById("rows");
+  tbody.textContent = "";
+  let cobrado = RECIBIDO, proxima = null;
+  for (const c of PLAN){
+    const fecha = pagos[String(c.n)] || "";
+    const pagada = !!fecha;
+    if (pagada) cobrado += c.monto; else if (!proxima) proxima = c;
+    const tr = document.createElement("tr");
+    if (pagada) tr.className = "paid";
+    const td1 = document.createElement("td"); td1.textContent = c.label; tr.appendChild(td1);
+    const td2 = document.createElement("td"); td2.textContent = c.vence;
+    if (c.nota){ const d=document.createElement("div"); d.className="note"; d.textContent=c.nota; td2.appendChild(d); }
+    tr.appendChild(td2);
+    const td3 = document.createElement("td"); td3.className="num monto"; td3.textContent = fmt(c.monto); tr.appendChild(td3);
+    const td4 = document.createElement("td");
+    const sp = document.createElement("span");
+    sp.className = "pill " + (pagada ? "ok" : "pend") + (!pagada && proxima===c ? " next" : "");
+    sp.textContent = pagada ? "Pagada" : (proxima===c ? "Próxima" : "Pendiente");
+    td4.appendChild(sp); tr.appendChild(td4);
+    const td5 = document.createElement("td"); td5.className="hide-m"; td5.textContent = fmtFecha(fecha); tr.appendChild(td5);
+    tbody.appendChild(tr);
+  }
+  document.getElementById("kCobrado").textContent = fmt(cobrado);
+  document.getElementById("kSaldo").textContent = fmt(TOTAL - cobrado);
+  document.getElementById("kProx").textContent = proxima ? fmt(proxima.monto) : "¡Pagado!";
+  const pct = Math.round(cobrado / TOTAL * 100);
+  document.getElementById("barFill").style.width = pct + "%";
+  const pagadas = PLAN.filter(c => pagos[String(c.n)]).length;
+  document.getElementById("barLbl").textContent =
+    `${pct}% pagado · ${pagadas} de ${PLAN.length} pagos` + (proxima ? ` · próximo: ${proxima.vence}` : "");
+}
+
+function setStatus(t, err){ const s=document.getElementById("status"); s.textContent=t; s.className="status"+(err?" err":""); s.style.display=t?"":"none"; }
+
+render();
+fetch("pagos.json?t=" + Date.now(), { cache: "no-store" })
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(d => { pagos = (d && typeof d === "object") ? d : {}; setStatus(""); render(); })
+  .catch(() => setStatus("No se pudo cargar el estado de pagos.", true));
+</script>
+</body>
+</html>
