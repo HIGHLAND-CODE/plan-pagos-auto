@@ -56,7 +56,25 @@
   .pin-form{display:inline-flex;gap:6px;align-items:center}
   .pin-form input{font:inherit;font-size:13px;width:80px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
   .pin-msg{font-size:12px;color:#dc2626;font-weight:500}
+  .tablewrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px}
+  h1{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+  #ownerTag{margin-left:0;flex-wrap:wrap}
+  .pin-form{flex-wrap:wrap}
+  .only-m{display:none}
+  .setup input{max-width:100%}
+  .setup a{word-break:break-all}
   @media (max-width:600px){
+    .wrap{padding:18px 12px 40px}
+    h1{font-size:20px}
+    .cards{gap:8px}
+    .card{padding:10px 12px}
+    .card .val{font-size:19px}
+    th,td{padding:9px 7px;font-size:13px}
+    th{font-size:11px}
+    .note{font-size:11px}
+    .only-m{display:block;margin-top:6px}
+    .only-m input[type=date]{font-size:12px;padding:2px 4px;max-width:130px}
+    .pill{padding:2px 8px;font-size:11px}
     .cards{grid-template-columns:1fr}
     th.hide-m,td.hide-m{display:none}
   }
@@ -84,12 +102,12 @@
 
   <div class="status" id="status">Cargando estado de pagos…</div>
 
-  <table>
+  <div class="tablewrap"><table>
     <thead><tr>
       <th>Pago</th><th>Vence</th><th style="text-align:right">Monto</th><th>Estado</th><th class="hide-m">Fecha de pago</th>
     </tr></thead>
     <tbody id="rows"></tbody>
-  </table>
+  </table></div>
 </div>
 
 <script>
@@ -157,6 +175,12 @@ function render(){
       cb.addEventListener("change", () => guardar(c.n, cb.checked ? (fecha || hoy()) : ""));
       const sp = document.createElement("span"); sp.className = "pill " + (pagada?"ok":"pend"); sp.textContent = pagada?"Pagada":"Pendiente";
       lab.append(cb, sp); td4.appendChild(lab);
+      if (pagada){
+        const wm = document.createElement("div"); wm.className = "only-m";
+        const im = document.createElement("input"); im.type = "date"; im.value = fecha;
+        im.addEventListener("change", () => { if (im.value) guardar(c.n, im.value); });
+        wm.appendChild(im); td4.appendChild(wm);
+      }
     } else {
       const sp = document.createElement("span");
       sp.className = "pill " + (pagada ? "ok" : "pend") + (!pagada && proxima===c ? " next" : "");
