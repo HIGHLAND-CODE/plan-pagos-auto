@@ -2,7 +2,13 @@
 
 Página pública (GitHub Pages): el comprador ve qué está pagado y qué falta.
 
-## Cómo marcar un pago recibido
+## Modo vendedor (desde la misma página)
+
+Tocá el 🔒 al lado del título, poné el PIN y tildá los pagos. La primera vez en cada
+celular/compu pide una llave de GitHub (fine-grained token, solo este repo,
+Contents: Read and write); queda guardada solo en ese navegador.
+
+## Cómo marcar un pago a mano (alternativa)
 
 1. Abrí `pagos.json` en GitHub y tocá el lápiz (editar).
 2. En el pago cobrado poné la fecha en formato `AAAA-MM-DD`, por ejemplo:

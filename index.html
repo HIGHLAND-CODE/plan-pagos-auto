@@ -45,6 +45,11 @@
   input[type=date]{font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
   .status{font-size:13px;color:var(--muted);margin:12px 2px}
   .status.err{color:#dc2626}
+  .setup{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 18px;font-size:13px;line-height:1.55}
+  .setup h3{margin:0 0 6px;font-size:15px}
+  .setup ol{margin:6px 0 10px;padding-left:20px}
+  .setup input{font:inherit;font-size:13px;width:100%;padding:6px 8px;margin:4px 0 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+  .setup a{color:var(--accent)}
   .owner-tag{display:inline-block;font-size:12px;background:var(--accent);color:#fff;padding:2px 8px;border-radius:6px;margin-left:6px;vertical-align:middle}
   #ownerTag{display:inline-flex;align-items:center;gap:6px;vertical-align:middle;margin-left:6px}
   .pin-btn{font:inherit;font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
@@ -59,7 +64,8 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Plan de pagos – venta del auto</h1>
+  <h1>Plan de pagos – venta del auto <span id="ownerTag"></span></h1>
+  <div id="setup"></div>
   <div class="sub">Precio total $3.000.000 · entrega pendiente el 17/11 · cuotas del 20 al 30 de cada mes</div>
 
   <div class="cards">
@@ -110,7 +116,24 @@ const PLAN = buildPlan();
 const fmt = n => "$" + Math.round(n).toLocaleString("es-AR");
 const fmtFecha = s => { if(!s) return ""; const [a,b,c]=s.split("-"); return `${c}/${b}/${a}`; };
 
-let pagos = {};          // se carga de pagos.json: { "entrega": "2026-11-17", "1": "2026-11-25", ... }
+let pagos = {};          // pagos.json: { "entrega": "2026-11-17", "1": "2026-11-25", ... }
+const REPO = "HIGHLAND-CODE/plan-pagos-auto", FILE = "pagos.json";
+const API = `https://api.github.com/repos/${REPO}/contents/${FILE}`;
+const PIN_HASH = "f9fe07c7ff27ca310a454632e486da7a628632570817f5dcfc476a709c98cc17";
+let vendedor = false, fileSha = null, guardando = Promise.resolve();
+
+const ls = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+             set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
+             del(k){ try{ localStorage.removeItem(k); }catch(e){} } };
+const ss = { get(k){ try{ return sessionStorage.getItem(k); }catch(e){ return null; } },
+             set(k,v){ try{ sessionStorage.setItem(k,v); }catch(e){} },
+             del(k){ try{ sessionStorage.removeItem(k); }catch(e){} } };
+
+function hoy(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function setStatus(t, err){ const s=document.getElementById("status"); s.textContent=t; s.className="status"+(err?" err":""); s.style.display=t?"":"none"; }
+async function sha256(t){ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,"0")).join(""); }
+const b64enc = str => btoa(unescape(encodeURIComponent(str)));
+const b64dec = b => decodeURIComponent(escape(atob(b.replace(/\n/g,""))));
 
 function render(){
   const tbody = document.getElementById("rows");
@@ -128,11 +151,26 @@ function render(){
     tr.appendChild(td2);
     const td3 = document.createElement("td"); td3.className="num monto"; td3.textContent = fmt(c.monto); tr.appendChild(td3);
     const td4 = document.createElement("td");
-    const sp = document.createElement("span");
-    sp.className = "pill " + (pagada ? "ok" : "pend") + (!pagada && proxima===c ? " next" : "");
-    sp.textContent = pagada ? "Pagada" : (proxima===c ? "Próxima" : "Pendiente");
-    td4.appendChild(sp); tr.appendChild(td4);
-    const td5 = document.createElement("td"); td5.className="hide-m"; td5.textContent = fmtFecha(fecha); tr.appendChild(td5);
+    if (vendedor){
+      const lab = document.createElement("label"); lab.className="chk";
+      const cb = document.createElement("input"); cb.type="checkbox"; cb.checked = pagada;
+      cb.addEventListener("change", () => guardar(c.n, cb.checked ? (fecha || hoy()) : ""));
+      const sp = document.createElement("span"); sp.className = "pill " + (pagada?"ok":"pend"); sp.textContent = pagada?"Pagada":"Pendiente";
+      lab.append(cb, sp); td4.appendChild(lab);
+    } else {
+      const sp = document.createElement("span");
+      sp.className = "pill " + (pagada ? "ok" : "pend") + (!pagada && proxima===c ? " next" : "");
+      sp.textContent = pagada ? "Pagada" : (proxima===c ? "Próxima" : "Pendiente");
+      td4.appendChild(sp);
+    }
+    tr.appendChild(td4);
+    const td5 = document.createElement("td"); td5.className="hide-m";
+    if (vendedor && pagada){
+      const inp = document.createElement("input"); inp.type="date"; inp.value = fecha;
+      inp.addEventListener("change", () => { if (inp.value) guardar(c.n, inp.value); });
+      td5.appendChild(inp);
+    } else td5.textContent = fmtFecha(fecha);
+    tr.appendChild(td5);
     tbody.appendChild(tr);
   }
   document.getElementById("kCobrado").textContent = fmt(cobrado);
@@ -145,13 +183,103 @@ function render(){
     `${pct}% pagado · ${pagadas} de ${PLAN.length} pagos` + (proxima ? ` · próximo: ${proxima.vence}` : "");
 }
 
-function setStatus(t, err){ const s=document.getElementById("status"); s.textContent=t; s.className="status"+(err?" err":""); s.style.display=t?"":"none"; }
+// --- Lectura ---
+function cargarPublico(){
+  return fetch(FILE + "?t=" + Date.now(), { cache: "no-store" })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => { pagos = (d && typeof d === "object") ? d : {}; render(); });
+}
+async function cargarApi(){
+  const r = await fetch(API + "?t=" + Date.now(), { headers: { Authorization: "Bearer " + ls.get("ghToken"), Accept: "application/vnd.github+json" }, cache: "no-store" });
+  if (r.status === 401 || r.status === 403 || r.status === 404) throw new Error("token");
+  if (!r.ok) throw new Error("red");
+  const j = await r.json();
+  fileSha = j.sha;
+  pagos = JSON.parse(b64dec(j.content)) || {};
+  render();
+}
+
+// --- Escritura (solo vendedor, con la llave guardada en este dispositivo) ---
+function guardar(n, fecha){
+  pagos = Object.assign({}, pagos, { [String(n)]: fecha });
+  render();
+  setStatus("Guardando…");
+  const nuevo = JSON.parse(JSON.stringify(pagos));
+  guardando = guardando.then(async () => {
+    const intento = async () => fetch(API, {
+      method: "PUT",
+      headers: { Authorization: "Bearer " + ls.get("ghToken"), Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+      body: JSON.stringify({ message: `Pago ${n === "entrega" ? "de la entrega" : "cuota " + n}: ${fecha || "desmarcado"}`, content: b64enc(JSON.stringify(nuevo, null, 2) + "\n"), sha: fileSha })
+    });
+    let r = await intento();
+    if (r.status === 409 || r.status === 422){ await cargarApi(); Object.assign(pagos, nuevo); r = await intento(); }
+    if (!r.ok) throw new Error(r.status);
+    fileSha = (await r.json()).content.sha;
+  }).then(
+    () => setStatus("Guardado ✓ El comprador lo ve en 1 o 2 minutos."),
+    e => setStatus(String(e.message) === "401" ? "La llave de GitHub no es válida. Salí del modo vendedor y cargala de nuevo." : "No se pudo guardar. Probá de nuevo.", true));
+}
+
+// --- Modo vendedor ---
+const tag = document.getElementById("ownerTag"), setup = document.getElementById("setup");
+function boton(txt, fn){ const b=document.createElement("button"); b.className="pin-btn"; b.textContent=txt; b.onclick=fn; return b; }
+
+function pintarTag(){
+  tag.textContent = "";
+  if (vendedor){
+    const s=document.createElement("span"); s.className="owner-tag"; s.textContent="Modo vendedor";
+    tag.append(s, boton("Salir", () => { vendedor=false; ss.del("pinOk"); setup.textContent=""; pintarTag(); render(); setStatus(""); }));
+  } else {
+    tag.append(boton("🔒", pedirPin));
+  }
+}
+function pedirPin(){
+  tag.textContent = "";
+  const f=document.createElement("form"); f.className="pin-form";
+  const i=document.createElement("input"); i.type="password"; i.inputMode="numeric"; i.placeholder="PIN"; i.maxLength=8;
+  const msg=document.createElement("span"); msg.className="pin-msg";
+  f.append(i, boton("Entrar", ()=>{}), boton("✕", e => { e.preventDefault(); pintarTag(); }), msg);
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    if (await sha256(i.value.trim()) !== PIN_HASH){ msg.textContent="PIN incorrecto"; i.value=""; i.focus(); return; }
+    ss.set("pinOk","1"); entrarVendedor();
+  };
+  tag.appendChild(f); i.focus();
+}
+async function entrarVendedor(){
+  if (!ls.get("ghToken")) return pedirToken();
+  try { await cargarApi(); vendedor = true; pintarTag(); render(); setStatus("Tildá cada pago cuando lo recibas."); }
+  catch(e){ if (e.message === "token"){ ls.del("ghToken"); pedirToken("La llave guardada ya no funciona. Cargá una nueva."); } else setStatus("No se pudo conectar con GitHub.", true); }
+}
+function pedirToken(aviso){
+  tag.textContent = ""; pintarTag();
+  setup.textContent = "";
+  const d=document.createElement("div"); d.className="setup";
+  d.innerHTML = `<h3>Configurar este dispositivo (solo la primera vez)</h3>
+    Para guardar pagos desde acá, la página necesita una llave de GitHub que solo pueda tocar este repositorio. Se guarda únicamente en este navegador.
+    <ol>
+      <li>Abrí <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a></li>
+      <li>Nombre: <b>plan-pagos</b>. Expiration: la que quieras (por ej. 1 año).</li>
+      <li>Repository access: <b>Only select repositories</b> → <b>plan-pagos-auto</b>.</li>
+      <li>Permissions → Repository permissions → <b>Contents: Read and write</b>.</li>
+      <li>Generate token, copiala y pegala acá abajo.</li>
+    </ol>`;
+  if (aviso){ const a=document.createElement("div"); a.className="pin-msg"; a.textContent=aviso; d.prepend(a); }
+  const i=document.createElement("input"); i.type="password"; i.placeholder="github_pat_…"; i.autocomplete="off";
+  const msg=document.createElement("span"); msg.className="pin-msg";
+  d.append(i, boton("Guardar llave", async () => {
+    const t=i.value.trim(); if (!t) return;
+    ls.set("ghToken", t); msg.textContent = "Probando…";
+    try { await cargarApi(); setup.textContent=""; vendedor=true; pintarTag(); render(); setStatus("Listo. Tildá cada pago cuando lo recibas."); }
+    catch(e){ ls.del("ghToken"); msg.textContent = e.message==="token" ? "La llave no tiene acceso al repositorio. Revisá los pasos 3 y 4." : "No se pudo conectar con GitHub."; }
+  }), boton("Cancelar", () => { setup.textContent=""; ss.del("pinOk"); }), msg);
+  setup.appendChild(d);
+}
 
 render();
-fetch("pagos.json?t=" + Date.now(), { cache: "no-store" })
-  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-  .then(d => { pagos = (d && typeof d === "object") ? d : {}; setStatus(""); render(); })
-  .catch(() => setStatus("No se pudo cargar el estado de pagos.", true));
+pintarTag();
+cargarPublico().then(() => setStatus("")).catch(() => setStatus("No se pudo cargar el estado de pagos.", true));
+if (ss.get("pinOk") === "1" && ls.get("ghToken")) entrarVendedor();
 </script>
 </body>
 </html>
